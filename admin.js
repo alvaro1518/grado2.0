@@ -13,6 +13,7 @@ import {
     addObservationToNotification,
     collection,
     db,
+    
     getDocs,
     doc,
     getDoc, // 
@@ -21,6 +22,7 @@ import {
     query,
     where,
   }  from './firebase.js';
+
 document.addEventListener('DOMContentLoaded', () => {
     const preinscripcionesContainer = document.getElementById('preinscripciones-container');
     const anteproyectosContainer = document.getElementById('anteproyectos-container');
@@ -31,113 +33,170 @@ document.addEventListener('DOMContentLoaded', () => {
     const anteproyectoIdInput = document.getElementById('anteproyecto-id');
     const jurado1Select = document.getElementById('jurado1');
     const jurado2Select = document.getElementById('jurado2');
+    const jurado3Select = document.getElementById('jurado3');
     const selectJuradosModal = document.getElementById('selectJuradosModal');
+    const createJuradoForm = document.getElementById('create-jurado-form');
 
-    observeAuthState(user => {
-        if (!user || user.email !== 'dallian588@gmail.com') {
-            window.location.href = 'login.html';
+    if (createJuradoForm) {
+      createJuradoForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const name = document.getElementById('jurado-name').value;
+        const email = document.getElementById('jurado-email').value;
+        const password = document.getElementById('jurado-password').value;
+
+        try {
+          // Añadir el nuevo jurado a Firestore
+          await addDoc(collection(db, 'users'), {
+            fullName: name,
+            email: email,
+            password: password, // Considera usar Firebase Authentication para esto
+            role: 'jurado'
+          });
+
+          alert('Jurado creado exitosamente.');
+
+          // Cerrar el modal usando Bootstrap 4
+          $('#createJuradoModal').modal('hide');
+
+          // Opcional: Actualizar la lista de jurados
+          // loadJurados();
+        } catch (error) {
+          console.error('Error al crear jurado:', error);
+          alert('Error al crear jurado. Por favor, inténtalo de nuevo.');
         }
-    });
-
-    if (logoutButton) {
-        logoutButton.addEventListener('click', async () => {
-            try {
-                await logoutUser();
-                window.location.href = 'login.html';
-            } catch (error) {
-                console.error('Error cerrando sesión:', error);
-                alert('Error al cerrar sesión. Por favor, inténtalo de nuevo.');
-            }
-        });
+      });
     }
 
-    if (showPreinscripcionesButton) {
-        showPreinscripcionesButton.addEventListener('click', () => {
-            preinscripcionesContainer.style.display = 'block';
-            anteproyectosContainer.style.display = 'none';
-            loadPreinscripciones();
-        });
-    }
+    
+// Supongamos que la función observeAuthState obtiene los detalles del usuario desde Firebase
+observeAuthState(async user => {
+  if (!user) {
+      // Si no hay usuario autenticado, redirige al inicio de sesión
+      window.location.href = '/login';
+      return;
+  }
 
-    if (showAnteproyectosButton) {
-        showAnteproyectosButton.addEventListener('click', () => {
-            preinscripcionesContainer.style.display = 'none';
-            anteproyectosContainer.style.display = 'block';
-            loadAnteproyectos();
-        });
-    }
+  try {
+      // Obtén los datos del usuario desde la base de datos o el almacenamiento
+      const userData = await getUserData(user.uid);
+
+      // Verifica el rol del usuario
+      if (userData.role !== 'admin') {
+          // Si el rol del usuario no es 'admin', redirige al inicio de sesión
+          window.location.href = '/login';
+      }
+  } catch (error) {
+      console.error('Error al obtener los datos del usuario:', error);
+      window.location.href = '/login';
+  }
+});
+
+
+if (logoutButton) {
+  logoutButton.addEventListener('click', async () => {
+      try {
+          await logoutUser();
+          window.location.href = '/login'; // Redirige al inicio de sesión después de cerrar sesión
+      } catch (error) {
+          console.error('Error cerrando sesión:', error);
+          alert('Error al cerrar sesión. Por favor, inténtalo de nuevo.');
+      }
+  });
+}
+
+
+if (showPreinscripcionesButton) {
+  showPreinscripcionesButton.addEventListener('click', () => {
+      preinscripcionesContainer.style.display = 'block';
+      anteproyectosContainer.style.display = 'none';
+      loadPreinscripciones();
+  });
+}
+
+if (showAnteproyectosButton) {
+  showAnteproyectosButton.addEventListener('click', () => {
+      preinscripcionesContainer.style.display = 'none';
+      anteproyectosContainer.style.display = 'block';
+      loadAnteproyectos();
+  });
+}
+
+
+
 
     async function loadPreinscripciones() {
-        try {
-            const querySnapshot = await getAllPreinscripciones();
-            let html = '';
-
-            for (const doc of querySnapshot.docs) {
-                const preinscripcion = doc.data();
-                const userDoc = await getUserById(preinscripcion.userId);
-                const userName = userDoc.data().fullName || 'Nombre no disponible';
-
-                const statusText = preinscripcion.isAccepted === undefined ? 'Pendiente' : (preinscripcion.isAccepted ? 'Aceptado' : 'Rechazado');
-                const cardClass = preinscripcion.isAccepted === undefined ? '' : (preinscripcion.isAccepted ? 'border-success' : 'border-danger');
-                const displayActions = preinscripcion.isAccepted === undefined ? 'block' : 'none';
-                const displayEdit = preinscripcion.isAccepted === undefined ? 'none' : 'block';
-                html += `
-                    <div class="card mt-3 ${cardClass}" id="card-${doc.id}">
-                        <div class="card-body">
-                            <h5 class="card-title">${preinscripcion.title || 'Título no disponible'}</h5>
-                            <p class="card-text">Estudiante: ${userName}</p>
-                            <p class="card-text">${preinscripcion.description || 'Descripción no disponible'}</p>
-                            <p class="card-text"><small class="text-muted">Semestre: ${preinscripcion.semester || 'Semestre no disponible'}</small></p>
-                            <p class="card-text"><small class="text-muted">Tipo: ${preinscripcion.type || 'Tipo no disponible'}</small></p>
-                            <p class="card-text"><small class="text-muted" id="status-${doc.id}">Estado: ${statusText}</small></p>
-                            <div id="actions-${doc.id}" style="display: ${displayActions};">
-                                <button class="btn btn-success btn-accept" data-id="${doc.id}">Aceptar</button>
-                                <button class="btn btn-danger btn-reject" data-id="${doc.id}">Rechazar</button>
-                            </div>
-                            <button class="btn btn-warning btn-edit" data-id="${doc.id}" style="display: ${displayEdit};">Editar</button>
-                        </div>
-                    </div>
-                `;
-            }
-
-            preinscripcionesContainer.innerHTML = html;
-
-            preinscripcionesContainer.querySelectorAll('.btn-accept').forEach(btn => {
-                btn.addEventListener('click', async ({ target: { dataset } }) => {
-                    try {
-                        await updatePreinscripcionStatus(dataset.id, true);
-                        updateCardAppearance(dataset.id, true);
-                        alert('Preinscripción aceptada.');
-                    } catch (error) {
-                        console.error('Error al aceptar preinscripción:', error);
-                        alert('Error al aceptar preinscripción. Por favor, inténtalo de nuevo.');
-                    }
-                });
-            });
-
-            preinscripcionesContainer.querySelectorAll('.btn-reject').forEach(btn => {
-                btn.addEventListener('click', async ({ target: { dataset } }) => {
-                    try {
-                        await updatePreinscripcionStatus(dataset.id, false);
-                        updateCardAppearance(dataset.id, false);
-                        alert('Preinscripción rechazada.');
-                    } catch (error) {
-                        console.error('Error al rechazar preinscripción:', error);
-                        alert('Error al rechazar preinscripción. Por favor, inténtalo de nuevo.');
-                    }
-                });
-            });
-
-            preinscripcionesContainer.querySelectorAll('.btn-edit').forEach(btn => {
-                btn.addEventListener('click', ({ target: { dataset } }) => {
-                    toggleEditButtons(dataset.id);
-                });
-            });
-        } catch (error) {
-            console.error('Error al cargar preinscripciones:', error);
-            alert('Error al cargar preinscripciones. Por favor, inténtalo de nuevo.');
-        }
-    }
+      try {
+          const querySnapshot = await getAllPreinscripciones();
+          let html = '';
+  
+          for (const doc of querySnapshot.docs) {
+              const preinscripcion = doc.data();
+              const userDoc = await getUserById(preinscripcion.userId);
+              const userName = userDoc.data().fullName || 'Nombre no disponible';
+  
+              const statusText = preinscripcion.isAccepted === undefined ? 'Pendiente' : (preinscripcion.isAccepted ? 'Aceptado' : 'Rechazado');
+              const cardClass = preinscripcion.isAccepted === undefined ? 'bg-light' : (preinscripcion.isAccepted ? 'bg-success' : 'bg-danger');
+              const displayActions = preinscripcion.isAccepted === undefined ? 'block' : 'none';
+              const displayEdit = preinscripcion.isAccepted === undefined ? 'none' : 'block';
+              
+              html += `
+                  <div class="card mt-3 ${cardClass}" id="card-${doc.id}" style="border-radius: 35px; color: black;">
+                      <div class="card-body" >
+                          <h5 class="card-title" >Título: ${preinscripcion.title || 'Título no disponible'}</h5>
+                          <p class="card-text">Estudiante: ${userName}</p>
+                          <p class="card-text"> Descripción: ${preinscripcion.description || 'Descripción no disponible'}</p>
+                          <p class="card-text"  ><small class="text-muted">Semestre: ${preinscripcion.semester || 'Semestre no disponible'}</small></p>
+                          <p class="card-text" ><small class="text-muted">Tipo: ${preinscripcion.type || 'Tipo no disponible'}</small></p>
+                          <p class="card-text"><small class="text-muted"  id="status-${doc.id}">Estado: ${statusText}</small></p>
+                          <div id="actions-${doc.id}" style="display: ${displayActions};">
+                              <button class="btn btn-success btn-accept" style="color: black;" data-id="${doc.id}">Aceptar</button>
+                              <button class="btn btn-danger btn-reject"style="color: black;" data-id="${doc.id}">Rechazar</button>
+                          </div>
+                          <button class="btn btn-warning btn-edit" data-id="${doc.id}" style="display: ${displayEdit};">Editar</button>
+                      </div>
+                  </div>
+              `;
+          }
+  
+          preinscripcionesContainer.innerHTML = html;
+  
+          preinscripcionesContainer.querySelectorAll('.btn-accept').forEach(btn => {
+              btn.addEventListener('click', async ({ target: { dataset } }) => {
+                  try {
+                      await updatePreinscripcionStatus(dataset.id, true);
+                      updateCardAppearance(dataset.id, true);
+                      alert('Preinscripción aceptada.');
+                  } catch (error) {
+                      console.error('Error al aceptar preinscripción:', error);
+                      alert('Error al aceptar preinscripción. Por favor, inténtalo de nuevo.');
+                  }
+              });
+          });
+  
+          preinscripcionesContainer.querySelectorAll('.btn-reject').forEach(btn => {
+              btn.addEventListener('click', async ({ target: { dataset } }) => {
+                  try {
+                      await updatePreinscripcionStatus(dataset.id, false);
+                      updateCardAppearance(dataset.id, false);
+                      alert('Preinscripción rechazada.');
+                  } catch (error) {
+                      console.error('Error al rechazar preinscripción:', error);
+                      alert('Error al rechazar preinscripción. Por favor, inténtalo de nuevo.');
+                  }
+              });
+          });
+  
+          preinscripcionesContainer.querySelectorAll('.btn-edit').forEach(btn => {
+              btn.addEventListener('click', ({ target: { dataset } }) => {
+                  toggleEditButtons(dataset.id);
+              });
+          });
+      } catch (error) {
+          console.error('Error al cargar preinscripciones:', error);
+          alert('Error al cargar preinscripciones. Por favor, inténtalo de nuevo.');
+      }
+  }
 
     async function loadAnteproyectos() {
         try {
@@ -150,26 +209,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 const userName = userDoc.data().fullName || 'Nombre no disponible';
 
                 const statusText = anteproyecto.isAccepted === undefined ? 'Pendiente' : (anteproyecto.isAccepted ? 'Aceptado' : 'Rechazado');
-                const cardClass = anteproyecto.isAccepted === undefined ? '' : (anteproyecto.isAccepted ? 'border-success' : 'border-danger');
+                const cardClass = anteproyecto.isAccepted === undefined ? '' : (anteproyecto.isAccepted ? 'bg-success' : 'bg-danger');
                 const displayActions = anteproyecto.isAccepted === undefined ? 'block' : 'none';
                 const displayEdit = anteproyecto.isAccepted === undefined ? 'none' : 'block';
                 const wordFileUrl = anteproyecto.wordFileUrl || '#'; 
                 html += `
-                    <div class="card mt-3 ${cardClass}" id="card-${doc.id}">
+                    <div class="card mt-3 ${cardClass}" id="card-${doc.id}" style="border-radius: 35px; color: black;">
                         <div class="card-body">
                             <h5 class="card-title">${anteproyecto.title || 'Título no disponible'}</h5>
                             <p class="card-text">Estudiante: ${userName}</p>
-                            <p class="card-text">${anteproyecto.description || 'Descripción no disponible'}</p>
+                            <p class="card-text" >Resumen:${anteproyecto.summary || 'Descripción no disponible'}</p>
                             <p class="card-text"><small class="text-muted">Tutor: ${anteproyecto.tutor || 'Tutor no disponible'}</small></p>
-                            <p class="card-text"><small class="text-muted">Objetivo General: ${anteproyecto.generalObjective || 'Objetivo General no disponible'}</small></p>
+                            <p class="card-text" ><small class="text-muted">Objetivo General: ${anteproyecto.generalObjective || 'Objetivo General no disponible'}</small></p>
                             <p class="card-text"><small class="text-muted">Objetivo Específico: ${anteproyecto.specificObjective || 'Objetivo Específico no disponible'}</small></p>
                             <p class="card-text"><small class="text-muted" id="status-${doc.id}">Estado: ${statusText}</small></p>
                             <div id="actions-${doc.id}" style="display: ${displayActions};">
-                                <button class="btn btn-success btn-accept" data-id="${doc.id}">Aceptar</button>
-                                <button class="btn btn-danger btn-reject" data-id="${doc.id}">Rechazar</button>
+                                <button class="btn btn-success btn-accept" style="color: black;" data-id="${doc.id}">Aceptar</button>
+                                <button class="btn btn-danger btn-reject" style="color: black;" data-id="${doc.id}">Rechazar</button>
                             </div>
                             <button class="btn btn-warning btn-edit" data-id="${doc.id}" style="display: ${displayEdit};">Editar</button>
-                            <a href="${wordFileUrl}" class="btn btn-primary" target="_blank" download="documento.docx">Descargar Word</a>
+                            <a href="${wordFileUrl}" class="btn btn-primary" style="color: black;" target="_blank" download="documento.docx">Descargar Word</a>
                         </div>
                     </div>
                 `;
@@ -254,14 +313,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const jurados = await getJurados();
             const jurado1Select = document.getElementById('jurado1');
             const jurado2Select = document.getElementById('jurado2');
-    
+            const jurado3Select = document.getElementById('jurado3');
             jurado1Select.innerHTML = '<option value="">Selecciona un jurado</option>';
             jurado2Select.innerHTML = '<option value="">Selecciona un jurado</option>';
-    
+            jurado3Select.innerHTML = '<option value="">Selecciona un jurado</option>';
             jurados.forEach(jurado => {
                 const option = `<option value="${jurado.id}">${jurado.fullName}</option>`;
                 jurado1Select.innerHTML += option;
                 jurado2Select.innerHTML += option;
+                jurado3Select.innerHTML += option;
             });
         } catch (error) {
             console.error('Error al cargar jurados:', error);
@@ -277,9 +337,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const anteproyectoId = anteproyectoIdInput.value;
             const jurado1Id = jurado1Select.value;
             const jurado2Id = jurado2Select.value;
+            const jurado3Id = jurado3Select.value;
 
             try {
-                await updateAnteproyectoJurados(anteproyectoId, jurado1Id, jurado2Id);
+                await updateAnteproyectoJurados(anteproyectoId, jurado1Id, jurado2Id, jurado3Id);
                 alert('Jurados asignados exitosamente.');
                 $(selectJuradosModal).modal('hide');
                 loadAnteproyectos(); 
@@ -310,7 +371,8 @@ async function getAllProjects() {
     const acceptedProjectsQuery = query(
       projectsCollection,
       where('juradojurado1StatusAccepted', '==', true),
-      where('juradojurado2StatusAccepted', '==', true)
+      where('juradojurado2StatusAccepted', '==', true),
+      where('juradojurado3StatusAccepted', '==', true)
     );
 
     const projectsSnapshot = await getDocs(acceptedProjectsQuery);
@@ -336,7 +398,7 @@ async function getAllProjects() {
 
   
   // Función para actualizar el estado de un proyecto
-// Función para actualizar el estado de un proyecto
+// Función para actualizar el estado de un proyectorrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr
 async function updateProjectStatus(projectId, isAccepted, isJuror) {
   try {
     const projectRef = doc(db, 'proyectos', projectId);
@@ -352,8 +414,10 @@ async function updateProjectStatus(projectId, isAccepted, isJuror) {
       // Actualiza el estado de aceptación del jurado
       if (projectData.juror1Id === auth.currentUser.uid) {
         updateData.juradojurado1StatusAccepted = isAccepted;
-      } else if (projectData.juror2Id === auth.currentUser.uid) {
+      } if (projectData.juror2Id === auth.currentUser.uid) {
         updateData.juradojurado2StatusAccepted = isAccepted;
+      } else if (projectData.juror3Id === auth.currentUser.uid) {
+        updateData.juradojurado3StatusAccepted = isAccepted;
       }
     } else {
       // Actualiza el estado de aceptación del coordinador
@@ -363,9 +427,9 @@ async function updateProjectStatus(projectId, isAccepted, isJuror) {
     await updateDoc(projectRef, updateData);
 
     // Verifica si ambos jurados han aceptado y si el coordinador también ha aceptado
-    const bothJurorsAccepted = projectData.juradojurado1StatusAccepted && projectData.juradojurado2StatusAccepted;
+    const bothJurorsAccepted = projectData.juradojurado1StatusAccepted && projectData.juradojurado2StatusAccepted && projectData.juradojurado3StatusAccepted;
     if (bothJurorsAccepted && isAccepted && !isJuror) {
-      await sendNotificationToStudent(projectId, 'Tu proyecto ha sido aceptado por los dos jurados y el coordinador.');
+      //await sendNotificationToStudent(projectId, 'Tu proyecto ha sido aceptado por los dos jurados y el coordinador.');
     }
 
     // Actualiza la interfaz de usuario
@@ -392,12 +456,12 @@ async function loadProjectStatus(projectId) {
     // Verificar el estado de los jurados
     const juror1Accepted = projectData.juradojurado1StatusAccepted;
     const juror2Accepted = projectData.juradojurado2StatusAccepted;
-
+    const juror3Accepted = projectData.juradojurado3StatusAccepted;
     // Actualizar la interfaz de usuario según el estado
-    if (juror1Accepted || juror2Accepted) {
+    if (juror1Accepted || juror2Accepted || juror3Accepted) {
       document.getElementById('acceptButton').disabled = true;
       document.getElementById('rejectButton').disabled = true;
-      if (juror1Accepted && juror2Accepted) {
+      if (juror1Accepted && juror2Accepted && juror3Accepted) {
         // Si ambos jurados aceptaron, puedes mostrar un mensaje u ocultar los botones
         document.getElementById('acceptButton').style.display = 'none';
         document.getElementById('rejectButton').style.display = 'none';
@@ -464,6 +528,7 @@ function fetchApprovedProjects() {
     // Filtrar proyectos donde ambos jurados hayan aceptado
     projectsRef.where('juradojurado1StatusAccepted', '==', true)
                .where('juradojurado2StatusAccepted', '==', true)
+               .where('juradojurado3StatusAccepted', '==', true)
                .get()
                .then((querySnapshot) => {
                    if (querySnapshot.empty) {
@@ -514,26 +579,26 @@ async function loadProjects() {
       const userName = userDoc.data().fullName || 'Nombre no disponible';
 
       const statusText = project.acceptedByCoordinator === undefined ? 'Pendiente' : (project.acceptedByCoordinator ? 'Aceptado' : 'Rechazado');
-      const cardClass = project.acceptedByCoordinator === undefined ? '' : (project.acceptedByCoordinator ? 'border-success' : 'border-danger');
+      const cardClass = project.acceptedByCoordinator === undefined ? '' : (project.acceptedByCoordinator ? 'bg-success' : 'bg-danger');
       const displayActions = project.acceptedByCoordinator === undefined ? 'block' : 'none';
       const displayEdit = project.acceptedByCoordinator !== undefined ? 'block' : 'none';
       const fileUrl = project.fileUrl || '#';
 
       html += `
-        <div class="card mt-3 ${cardClass}" id="card-${project.id}">
+        <div class="card mt-3 ${cardClass}" id="card-${project.id}" style="border-radius: 35px; color: black;">
           <div class="card-body">
-            <h5 class="card-title">${project.title || 'Título no disponible'}</h5>
+            <h5 class="card-title">Título: ${project.title || 'Título no disponible'}</h5>
             <p class="card-text">Estudiante: ${userName}</p>
-            <p class="card-text">${project.summary || 'Resumen no disponible'}</p>
+            <p class="card-text">Resumen: ${project.summary || 'Resumen no disponible'}</p>
             <p class="card-text"><small class="text-muted">Estado: ${statusText}</small></p>
             <div id="actions-${project.id}" style="display: ${displayActions};">
-              <button class="btn btn-success btn-accept" data-id="${project.id}">Aceptar</button>
-              <button class="btn btn-danger btn-reject" data-id="${project.id}">Rechazar</button>
+              <button class="btn btn-success btn-accept" style="color: black;" data-id="${project.id}">Aceptar</button>
+              <button class="btn btn-danger btn-reject" style="color: black;" data-id="${project.id}">Rechazar</button>
             </div>
             <div id="edit-${project.id}" style="display: ${displayEdit};">
               <button class="btn btn-primary btn-edit" data-id="${project.id}">Editar</button>
             </div>
-            <a href="${fileUrl}" class="btn btn-primary" target="_blank" download="documento.docx">Descargar Word</a>
+            <a href="${fileUrl}" class="btn btn-primary" style="color: black;" target="_blank" download="documento.docx">Descargar Word</a>
           </div>
         </div>
       `;

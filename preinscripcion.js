@@ -1,6 +1,5 @@
 import { savePreinscripcion, getAllPreinscripciones, onGetPreinscripciones, deletePreinscripcion, getPreinscripcion, updatePreinscripcion, observeAuthState, logoutUser } from './firebase.js';
 
-
 const projectForm = document.getElementById('project-form');
 const projectsContainer = document.getElementById('projects-container');
 const logoutButton = document.getElementById('logout-button');
@@ -8,9 +7,34 @@ const logoutButton = document.getElementById('logout-button');
 let editStatus = false;
 let id = '';
 
-observeAuthState(user => {
+observeAuthState(async (user) => {
   if (!user) {
-    window.location.href = 'login.html';
+    window.location.href = '/login';
+    return;
+  }
+
+  try {
+    const userDataDoc = await getUserData(user.uid);
+    if (userDataDoc.exists()) {
+      const userData = userDataDoc.data();
+
+      // Verificar si el usuario tiene el rol de 'estudiante'
+      if (userData.role !== 'estudiante') {
+        alert('No tiene permiso para acceder a esta sección.');
+        window.location.href = '/login';
+        return;
+      }
+
+      // Si el rol es 'estudiante', continuar con la lógica adicional
+      checkPreinscripcionStatus(user.uid);
+    } else {
+      console.error('Datos del usuario no encontrados.');
+      window.location.href = '/login';
+    }
+  } catch (error) {
+    console.error('Error al verificar los datos del usuario:', error);
+    alert('Hubo un problema al verificar su acceso. Intente nuevamente.');
+    window.location.href = '/login';
   }
 });
 
@@ -22,14 +46,15 @@ window.addEventListener('DOMContentLoaded', async () => {
 
         querySnapshot.forEach((doc) => {
           const preinscripcion = doc.data();
-          if (preinscripcion.userId === user.uid) {  // Only show preinscripciones for the current user
+          if (preinscripcion.userId === user.uid) {  // Solo mostrar preinscripciones del usuario actual
+            
             html += `
-              <div class="card mt-3">
+              <div class="card mt-3" style="background-color: #417e8d; border-radius: 35px;">
                 <div class="card-body">
-                  <h5 class="card-title">${preinscripcion.title}</h5>
-                  <p class="card-text">${preinscripcion.description}</p>
-                  <p class="card-text"><small class="text-muted">Semestre: ${preinscripcion.semester}</small></p>
-                  <p class="card-text"><small class="text-muted">Tipo: ${preinscripcion.type}</small></p>
+                  <h5 class="card-title" style="color: white;">Título: ${preinscripcion.title}</h5>
+                  <p class="card-text" style="color: white;">Descripción del Proyecto: ${preinscripcion.description}</p>
+                  <p class="card-text" >Semestre: ${preinscripcion.semester}</p>
+                  <p class="card-text">Tipo: ${preinscripcion.type}</p>
                   ${preinscripcion.isAccepted ? `
                     <button class="btn btn-secondary" disabled>Aceptado</button>
                   ` : `
@@ -69,7 +94,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         });
       });
     } else {
-      window.location.href = 'login.html';
+      window.location.href = '/login';
     }
   });
 });
@@ -77,10 +102,10 @@ window.addEventListener('DOMContentLoaded', async () => {
 logoutButton.addEventListener('click', async () => {
   try {
     await logoutUser();
-    window.location.href = 'login.html';
-    history.pushState(null, null, 'login.html');
+    window.location.href = '/login';
+    history.pushState(null, null, '/login');
     window.addEventListener('popstate', function() {
-      window.location.href = 'login.html';
+      window.location.href = '/login';
     });
   } catch (error) {
     console.error('Error cerrando sesión:', error);

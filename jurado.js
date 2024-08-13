@@ -17,7 +17,9 @@ import {
   doc,
   getDoc,
   auth,
+  updatePassword as firebaseUpdatePassword
 } from './firebase.js';
+import { EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
 
 const juradoNameElement = document.getElementById('jurado-name');
 const logoutButton = document.getElementById('logout-button');
@@ -27,14 +29,83 @@ const observationModal = new bootstrap.Modal(document.getElementById('observatio
 const observationForm = document.getElementById('observation-form');
 const observationText = document.getElementById('observation-text');
 const anteproyectoIdInput = document.getElementById('anteproyecto-id');
+
+// Elementos del DOM
+const changePasswordModal = new bootstrap.Modal(document.getElementById('changePasswordModal'));
+const changePasswordForm = document.getElementById('change-password-form');
+const currentPasswordInput = document.getElementById('current-password');
+const newPasswordInput = document.getElementById('new-password');
+const confirmNewPasswordInput = document.getElementById('confirm-new-password');
+
+// Botón para abrir el modal de cambio de contraseña
+document.getElementById('change-password-button').addEventListener('click', () => {
+  changePasswordModal.show();
+});
+
+// Manejar el envío del formulario de cambio de contraseña
+changePasswordForm.addEventListener('submit', async (e) => {
+  e.preventDefault(); // Prevenir el comportamiento por defecto del formulario
+
+  const currentPassword = currentPasswordInput.value;
+  const newPassword = newPasswordInput.value;
+  const confirmNewPassword = confirmNewPasswordInput.value;
+
+  // Validar que las nuevas contraseñas coincidan
+  if (newPassword !== confirmNewPassword) {
+    alert('Las nuevas contraseñas no coinciden.');
+    return;
+  }
+
+  try {
+    // Cambiar la contraseña
+    await changePassword(currentPassword, newPassword);
+    alert('Contraseña actualizada con éxito.');
+    changePasswordModal.hide();
+  } catch (error) {
+    console.error('Error al cambiar la contraseña:', error);
+    alert('Error al cambiar la contraseña. Por favor, intente nuevamente.');
+  }
+});
+
+// Función para cambiar la contraseña
+const changePassword = async (currentPassword, newPassword) => {
+  try {
+    // Obtener el usuario actual
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error("No se ha encontrado un usuario autenticado.");
+    }
+
+    // Reautenticar al usuario con la contraseña actual
+    const credential = EmailAuthProvider.credential(user.email, currentPassword);
+    await reauthenticateWithCredential(user, credential);
+
+    // Actualizar la contraseña
+    await firebaseUpdatePassword(user, newPassword);
+  } catch (error) {
+    throw new Error("Error al cambiar la contraseña: " + error.message);
+  }
+};
 let currentUser;
 
 observeAuthState(async (user) => {
   if (!user) {
-    window.location.href = 'login.html';
+    window.location.href = '/login';
     return;
   }
+  try {
+    // Obtén los datos del usuario desde la base de datos o el almacenamiento
+    const userData = await getUserData(user.uid);
 
+    // Verifica el rol del usuario
+    if (userData.role !== 'jurado') {
+        // Si el rol del usuario no es 'admin', redirige al inicio de sesión
+        window.location.href = '/login';
+    }
+} catch (error) {
+    console.error('Error al obtener los datos del usuario:', error);
+    window.location.href = '/login';
+}
   currentUser = user; // Guardar el usuario en una variable global
 
   try {
@@ -90,7 +161,7 @@ observeAuthState(async (user) => {
 logoutButton.addEventListener('click', async () => {
   try {
     await logoutUser();
-    window.location.href = 'login.html';
+    window.location.href = '/login';
   } catch (error) {
     console.error('Error al cerrar sesión:', error);
     alert('Error al cerrar sesión. Por favor, intente nuevamente.');
@@ -125,20 +196,25 @@ async function displayAnteproyectos(anteproyectos) {
       const isAccepted = anteproyecto[statusField] === 'aceptado';
       const isRejected = anteproyecto[statusField] === 'rechazado';
       
-      const statusColor = isAccepted ? 'text-success' : 'text-danger';
+      const statusColor = isAccepted ? 'text-light' : 'text-danger';
       const statusText = isAccepted ? 'Aceptado' : (isRejected ? 'Rechazado' : 'Pendiente');
 
       const anteproyectoDiv = document.createElement('div');
       anteproyectoDiv.className = 'card mt-3';
+      anteproyectoDiv.style.backgroundColor = '#417e8d'; // Color de fondo
+      anteproyectoDiv.style.borderRadius = '35px'; // Bordes redondeados
       anteproyectoDiv.innerHTML = `
-        <div class="card-body">
-          <h5 class="card-title">${anteproyecto.title || 'Título no disponible'}</h5>
-          <p class="card-text">Estudiante: ${studentName}</p>
-          <p class="card-text ${statusColor}" id="status-${anteproyecto.id}">Estado: ${statusText}</p>
-          <a href="${anteproyecto.wordFileUrl}" class="btn btn-primary" target="_blank" download="documento.docx">Descargar Word</a>
+      <div class="card-body" style="color: white;"> <!-- Color blanco para todo el texto -->
+      <h5 class="card-title">Título del Anteproyecto: ${anteproyecto.title || 'Título no disponible'}</h5>
+      <p class="card-text">Estudiante: ${studentName}</p>
+      <p class="card-text" style="color: white;"><small>Tutor: ${anteproyecto.tutor || 'Tutor no disponible'}</small></p>
+      <p class="card-text" style="color: white;"><small>Objetivo General: ${anteproyecto.generalObjective || 'Objetivo General no disponible'}</small></p>
+      <p class="card-text" style="color: white;"><small>Objetivo Específico: ${anteproyecto.specificObjective || 'Objetivo Específico no disponible'}</small></p>
+      <p class="card-text ${statusColor}" id="status-${anteproyecto.id}">Estado: ${statusText}</p>
+      <a href="${anteproyecto.wordFileUrl}" class="btn btn-primary" target="_blank" download="documento.docx">Descargar Word</a>
           <button class="btn btn-success mt-2 ${isAccepted || isRejected ? 'd-none' : ''}" data-id="${anteproyecto.id}" data-action="accept">Aceptar</button>
           <button class="btn btn-danger mt-2 ${isAccepted || isRejected ? 'd-none' : ''}" data-id="${anteproyecto.id}" data-action="reject">Rechazar</button>
-          <button class="btn btn-info mt-2 ${isAccepted || isRejected ? '' : 'd-none'}" data-id="${anteproyecto.id}" data-action="edit">Editar</button>
+          <button class="btn btn-info mt-2 ${isAccepted || isRejected ? '' : 'd-none'}" style="color:white" data-id="${anteproyecto.id}" data-action="edit">Editar</button>
         </div>
       `;
       anteproyectoDetailElement.appendChild(anteproyectoDiv);
@@ -149,6 +225,8 @@ async function displayAnteproyectos(anteproyectos) {
 
   attachEventListeners();
 }
+
+
 
 function attachEventListeners() {
   document.querySelectorAll('[data-action="accept"]').forEach(button => {
@@ -305,11 +383,13 @@ async function getJuradoNumber(userId) {
     const anteproyecto = anteproyectos[0]; // Suponiendo que hay al menos un anteproyecto
     const jurado1Id = anteproyecto.jurado1ID;
     const jurado2Id = anteproyecto.jurado2ID;
-
+    const jurado3Id = anteproyecto.jurado3ID;
     if (userId === jurado1Id) {
       return 1; // Jurado 1
     } else if (userId === jurado2Id) {
       return 2; // Jurado 2
+    }else if (userId === jurado3Id) {
+      return 3; // Jurado 3
     } else {
       console.error('ID del jurado no coincide con ningún jurado asignado.');
       return null;
@@ -357,6 +437,7 @@ async function displayProjects() {
 
       // Determinar el campo de estado basado en el número del jurado
       const juradoNumber = await getJuradoNumber(currentUser.uid); 
+      console.log(juradoNumber);
       const statusField = `juradojurado${juradoNumber}StatusAccepted`;
       console.log(statusField)
       // Verificar si el proyecto ha sido aceptado o rechazado
@@ -365,16 +446,18 @@ async function displayProjects() {
       console.log(isAccepted)
       
       // Determinar el color y el texto del estado
-      const statusColor = isAccepted ? 'text-success' : (isRejected ? 'text-danger' : 'text-warning');
+      const statusColor = isAccepted ? 'text-Info' : (isRejected ? 'text-danger' : 'text-warning');
       const statusText = isAccepted ? 'Aceptado' : (isRejected ? 'Rechazado' : 'Pendiente');
       const cardClass = isAccepted ? 'card-project-accepted' : (isRejected ? 'card-project-rejected' : 'card-project-pending');
 
       // Crear y mostrar la tarjeta del proyecto
       const projectDiv = document.createElement('div');
       projectDiv.className = `card mt-3 ${cardClass}`;
+      projectDiv.style.backgroundColor = '#417e8d'; // Color de fondo
+      projectDiv.style.borderRadius = '35px'; // Bordes redondeados
       projectDiv.innerHTML = `
         <div class="card-body">
-          <h5 class="card-title">${project.title || 'Título no disponible'}</h5>
+          <h5 class="card-title" style="color:white">Título del Proyecto: ${project.title || 'Título no disponible'}</h5>
           <p class="card-text">Estudiante: ${studentName}</p>
           <p class="card-text ${statusColor}" id="status-${project.id}">Estado: ${statusText}</p>
           <a href="${project.fileUrl}" class="btn btn-primary" target="_blank" download="documento.docx">Descargar Word</a>
@@ -422,7 +505,7 @@ async function handleAcceptProject(event) {
     
     // Verifica si ambos jurados han aceptado el proyecto
     const projectDetails = await getProjectDetails(projectId);
-    if (projectDetails.juradojurado1StatusAccepted === true && projectDetails.juradojurado2StatusAccepted === true) {
+    if (projectDetails.juradojurado1StatusAccepted === true && projectDetails.juradojurado2StatusAccepted === true && projectDetails.juradojurado3StatusAccepted === true) {
       await markProjectAsCompleteForAdmin(projectId);
       await notifyAdmin(projectId);
     }
@@ -442,12 +525,12 @@ async function handleRejectProject(event) {
   try {
     const currentUser = auth.currentUser;
     const juradoNumber = await getJuradoNumber(currentUser.uid);
-
+    console.log(juradoNumber);
     if (juradoNumber === null) {
       throw new Error('No se pudo determinar el número del jurado.');
     }
 
-    const statusField = `juradojurado${juradoNumber}StatusAccepted`;
+    const statusField = `jurado${juradoNumber}Status`;
     await updateProjectStatus(projectId, statusField, false);
     
     // Actualiza la interfaz de usuario

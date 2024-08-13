@@ -27,7 +27,7 @@ registerForm.addEventListener('submit', async (e) => {
     });
 
     // Redirige a la página de información del estudiante para completar el perfil
-    window.location.href = 'student-info.html';
+    window.location.href = '/student-info';
   } catch (error) {
     console.error('Error al crear usuario:', error);
     registerError.textContent = 'Error al crear usuario. Inténtalo de nuevo.';

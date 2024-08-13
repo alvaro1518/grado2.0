@@ -1,9 +1,20 @@
 import { loginUser, getUserData, sendPasswordResetEmail } from './firebase.js';
+import { encrypt } from './encryption.js'; // Usa CryptoJS para cifrado
 
 const loginForm = document.getElementById('login-form');
 const createAccountBtn = document.getElementById('create-account-btn');
 const forgotPasswordBtn = document.getElementById('forgot-password-btn');
 const loginError = document.getElementById('login-error');
+
+async function redirectToPage(page) {
+  try {
+    // Cifra la página y redirige a la URL de redirección
+    const encryptedPage = encrypt(page);
+    window.location.href = `redirect.html?data=${encodeURIComponent(encryptedPage)}`;
+  } catch (error) {
+    console.error('Error al cifrar y redirigir:', error);
+  }
+}
 
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -12,11 +23,9 @@ loginForm.addEventListener('submit', async (e) => {
   const password = loginForm['login-password'].value;
 
   try {
-    // Inicia sesión con las credenciales proporcionadas
     const userCredential = await loginUser(email, password);
     const user = userCredential.user;
 
-    // Obtén los datos del usuario
     const userDataDoc = await getUserData(user.uid);
     if (!userDataDoc.exists()) {
       throw new Error('Datos del usuario no encontrados');
@@ -26,16 +35,16 @@ loginForm.addEventListener('submit', async (e) => {
     const role = userData.role;
     const hasCompletedProfile = userData.fullName && userData.age && userData.major && userData.semester && userData.phone && userData.gender;
 
-    // Redirige según el rol y si el perfil del estudiante está completo
     if (role === 'administrador') {
-      window.location.href = 'admin.html';
+      await redirectToPage('/admin');
     } else if (role === 'jurado') {
-      window.location.href = 'jurado.html';
+      await redirectToPage('/jurado');
     } else if (role === 'estudiante') {
       if (hasCompletedProfile) {
-        window.location.href = 'dashboard.html';
+        console.log("sss")
+        await redirectToPage('/dashboard');
       } else {
-        window.location.href = 'student-info.html';
+        await redirectToPage('/student-info');
       }
     } else {
       throw new Error('Rol desconocido');
@@ -48,7 +57,7 @@ loginForm.addEventListener('submit', async (e) => {
 });
 
 createAccountBtn.addEventListener('click', () => {
-  window.location.href = 'register.html';
+  window.location.href = '/register';
 });
 
 forgotPasswordBtn.addEventListener('click', () => {

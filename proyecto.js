@@ -17,7 +17,7 @@ let currentProjectId = null;
 window.addEventListener('DOMContentLoaded', async () => {
   observeAuthState(async user => {
     if (!user) {
-      window.location.href = 'login.html';
+      window.location.href ='/login';
     } else {
       const isAccepted = await getUserAcceptanceStatus(user.uid);
       if (!isAccepted) {
@@ -54,8 +54,9 @@ async function checkAnteproyectoAcceptance(userId) {
             // Extrae los IDs de los jurados correctamente
             const juror1Id = data.jurado1?.id || null;
             const juror2Id = data.jurado2?.id || null;
+            const juror3Id = data.jurado3?.id || null;
 
-            if (juror1Id && juror2Id) {
+            if (juror1Id && juror2Id && juror3Id) {
               contentContainer.style.display = 'block';
               displayUserProject(userId);  // Muestra el proyecto del usuario
             } else {
@@ -92,7 +93,7 @@ async function checkAnteproyectoAcceptance(userId) {
 logoutButton.addEventListener('click', async () => {
   try {
     await logoutUser();
-    window.location.href = 'login.html';
+    window.location.href = '/login';
   } catch (error) {
     console.error('Error cerrando sesión:', error);
     alert('Error al cerrar sesión. Por favor, inténtalo de nuevo.');
@@ -133,8 +134,9 @@ projectForm.addEventListener('submit', async (e) => {
           const anteproyectoData = anteproyectoDoc.data();
           const juror1Id = anteproyectoData.jurado1ID || null;
           const juror2Id = anteproyectoData.jurado2ID || null;
-
-          if (!juror1Id || !juror2Id) {
+          const juror3Id = anteproyectoData.jurado3ID || null;
+          
+          if (!juror1Id || !juror2Id || !juror3Id) {
             alert('Los IDs de los jurados no están disponibles.');
             return;
           }
@@ -145,13 +147,14 @@ projectForm.addEventListener('submit', async (e) => {
             fileUrl: fileURL,
             userId: user.uid,
             juror1Id,
-            juror2Id
+            juror2Id,
+            juror3Id
           });
 
           await updateUserProjectId(user.uid, newProjectRef.id);
 
           // Notificar solo a los dos jurados
-          await notifyJurors(juror1Id, juror2Id, newProjectRef.id);
+          await notifyJurors(juror1Id, juror2Id,juror3Id, newProjectRef.id);
 
           alert('Proyecto guardado con éxito.');
           projectForm.reset();
@@ -161,7 +164,7 @@ projectForm.addEventListener('submit', async (e) => {
           alert('No se pudo encontrar el anteproyecto asociado.');
         }
       } else {
-        window.location.href = 'login.html';
+        window.location.href = '/login';
       }
     });
   } catch (error) {
@@ -170,10 +173,10 @@ projectForm.addEventListener('submit', async (e) => {
   }
 });
 
-async function notifyJurors(juror1Id, juror2Id, projectId) {
+async function notifyJurors(juror1Id, juror2Id,juror3Id, projectId) {
   const message = `El estudiante ha guardado un nuevo proyecto. Revisa el proyecto con ID: ${projectId}`;
 
-  if (!juror1Id || !juror2Id || !message) {
+  if (!juror1Id || !juror2Id || !juror3Id || !message) {
     console.error('Error: ID del jurado o mensaje no están definidos.');
     return;
   }
@@ -182,6 +185,7 @@ async function notifyJurors(juror1Id, juror2Id, projectId) {
     // Enviar notificaciones a ambos jurados
     await sendNotification({ userId: juror1Id, message, isAccepted: false });
     await sendNotification({ userId: juror2Id, message, isAccepted: false });
+    await sendNotification({ userId: juror3Id, message, isAccepted: false });
     console.log('Notificaciones enviadas a los jurados.');
   } catch (error) {
     console.error('Error al notificar a los jurados:', error);
@@ -203,10 +207,10 @@ async function displayUserProject(userId) {
         const projectData = projectDoc.data();
 
         projectDisplay.innerHTML = `
-          <div class="card mt-3">
+          <div class="card mt-3" style="background-color: #417e8d; border-radius: 35px;">
             <div class="card-body">
-              <h5 class="card-title">${projectData.title}</h5>
-              <p class="card-text">${projectData.summary}</p>
+              <h5 class="card-title" style="color:white">TÍtulo: ${projectData.title}</h5>
+              <p class="card-text">Resumen: ${projectData.summary}</p>
               <a href="${projectData.fileUrl}" target="_blank" class="btn btn-primary">Ver Proyecto</a>
               <button class="btn btn-secondary" onclick="editProject('${projectId}')">Editar</button>
               <button class="btn btn-danger" onclick="deleteProject('${projectId}', '${userId}')">Eliminar</button>

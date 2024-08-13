@@ -25,7 +25,7 @@ let id = '';
 // Observa el estado de autenticación del usuario
 observeAuthState(user => {
   if (!user) {
-    window.location.href = 'login.html';
+    window.location.href = '/login';
   } else {
     checkPreinscripcionStatus(user.uid);
   }
@@ -46,7 +46,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       loadAnteproyectos(user.uid); // Cargar anteproyectos del usuario actual
       loadNotifications(user.uid); // Cargar notificaciones del usuario actual
     } else {
-      window.location.href = 'login.html';
+      window.location.href = '/login';
     }
   });
 });
@@ -60,14 +60,17 @@ function loadAnteproyectos(userId) {
       const anteproyecto = doc.data();
       if (anteproyecto.userId === userId) {  // Mostrar solo los anteproyectos del usuario actual
         html += `
-          <li class="list-group-item d-flex justify-content-between align-items-center">
-            <span>${anteproyecto.title}</span>
+        <div class="card mt-3" style="background-color: #417e8d; border-radius: 35px;">
+                <div class="card-body">
+          
+            <span style="color: white;">Título: ${anteproyecto.title}</span>
             <div>
               <a href="${anteproyecto.wordFileUrl}" download class="btn btn-secondary btn-sm me-2">Descargar</a>
               <button class="btn btn-primary btn-edit" data-id="${doc.id}">Editar</button>
               <button class="btn btn-danger btn-delete" data-id="${doc.id}">Eliminar</button>
             </div>
-          </li>
+          </div>
+          </div>
         `;
       }
     });
@@ -130,8 +133,7 @@ function displayNotifications(notifications) {
     notificationDiv.className = 'notification';
     notificationDiv.innerHTML = `
       <p>${notification.message}</p>
-      <button class="btn btn-success" onclick="acceptNotification('${notification.id}')">Aceptar</button>
-      <button class="btn btn-danger" onclick="rejectNotification('${notification.id}')">Rechazar</button>
+      
     `;
 
     notificationsList.appendChild(notificationDiv);
@@ -162,10 +164,10 @@ window.rejectNotification = async function(notificationId) {
 logoutButton.addEventListener('click', async () => {
   try {
     await logoutUser();
-    window.location.href = 'login.html';
-    history.pushState(null, null, 'login.html');
+    window.location.href = '/login';
+    history.pushState(null, null, '/login');
     window.addEventListener('popstate', function() {
-      window.location.href = 'login.html';
+      window.location.href = '/login';
     });
   } catch (error) {
     console.error('Error cerrando sesión:', error);
@@ -238,7 +240,7 @@ anteproyectoForm.addEventListener('submit', async (e) => {
           alert('Error al obtener anteproyectos. Por favor, inténtalo de nuevo.');
         });
       } else {
-        window.location.href = 'login.html';
+        window.location.href = '/login';
       }
     });
   } catch (error) {

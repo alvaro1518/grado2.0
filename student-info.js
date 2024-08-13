@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   auth.onAuthStateChanged(async (user) => {
     if (!user) {
       // Redirect to login if not authenticated
-      window.location.href = 'login.html';
+      window.location.href = '/login';
       return;
     }
 
@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Redirect to dashboard
-        window.location.href = 'dashboard.html';
+        window.location.href = '/dashboard';
       } catch (error) {
         console.error('Error saving student info:', error);
         alert('Failed to save information. Please try again.');

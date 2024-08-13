@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, onSnapshot, deleteDoc, doc, getDoc, updateDoc, query, where, setDoc } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
-import { getAuth,createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail as sendResetEmail , onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
+import { getAuth,EmailAuthProvider,createUserWithEmailAndPassword,reauthenticateWithCredential, updatePassword, signInWithEmailAndPassword, sendPasswordResetEmail as sendResetEmail , onAuthStateChanged, signOut,  } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-storage.js";
 
 // Configuración de Firebase
@@ -36,6 +36,13 @@ if (window.location.hostname === "localhost") {
   }
   return await addDoc(collection(db, "preinscripciones"), preinscripcion);
 };*/
+
+// Exporta las funciones necesarias
+
+export const reauthenticate = (user, currentPassword) => {
+  const credential = EmailAuthProvider.credential(user.email, currentPassword);
+  return reauthenticateWithCredential(user, credential);
+};
 export const sendPasswordResetEmail = (email) => {
   return sendResetEmail(auth, email);
 };
@@ -106,16 +113,19 @@ export async function getJuradosAsignados(anteproyectoId) {
     const anteproyectoData = anteproyectoDoc.data();
     const jurado1Id = anteproyectoData.jurado1ID;
     const jurado2Id = anteproyectoData.jurado2ID;
+    const jurado3Id = anteproyectoData.jurado3ID;
 
-    return { jurado1Id, jurado2Id };
+    return { jurado1Id, jurado2Id, jurado3Id };
+    
   } catch (error) {
     console.error('Error al obtener jurados asignados:', error);
     throw error;
   }
 }
-
-export async function saveProject({ title, summary, fileUrl, userId, juror1Id, juror2Id }) {
+//////////////////////////////////////////////////////////////////////////////////Arrelglar*//////////////
+export async function saveProject({ title, summary, fileUrl, userId, juror1Id, juror2Id, juror3Id }) {
   try {
+    console.log('Datos del proyecto:', { title, summary, fileUrl, userId, juror1Id, juror2Id, juror3Id });
     const docRef = await addDoc(collection(db, 'proyectos'), {
       title,
       summary,
@@ -123,7 +133,9 @@ export async function saveProject({ title, summary, fileUrl, userId, juror1Id, j
       userId,
       juror1Id,
       juror2Id,
+      juror3Id,
       timestamp: new Date()
+      
     });
     return docRef;
   } catch (error) {
@@ -219,12 +231,13 @@ export async function sendNotificationToJurors(projectId) {
     const projectData = projectDoc.data();
     const jurado1Id = projectData.jurado1ID;
     const jurado2Id = projectData.jurado2ID;
-
+    const jurado3Id = projectData.jurado3ID;
     const message = `Nuevo proyecto disponible para revisión: ${projectData.title}.`;
 
     await Promise.all([
       sendNotification(jurado1Id, message),
-      sendNotification(jurado2Id, message)
+      sendNotification(jurado2Id, message),
+      sendNotification(jurado3Id, message)
     ]);
 
     console.log('Notificaciones enviadas a los jurados.');
@@ -305,8 +318,8 @@ export async function getJurors() {
         const anteproyectoData = anteproyectoDoc.data();
         const juror1Id = anteproyectoData.jurado1?.id || null;
         const juror2Id = anteproyectoData.jurado2?.id || null;
-
-        return [juror1Id, juror2Id];
+        const juror3Id = anteproyectoData.jurado3?.id || null;
+        return [juror1Id, juror2Id, juror3Id];
       }
     }
   }
@@ -428,17 +441,20 @@ export async function getAnteproyectosByJuradoId(juradoId) {
     // Crea dos consultas: una para jurado1ID y otra para jurado2ID
     const q1 = query(anteproyectosRef, where('jurado1ID', '==', juradoId));
     const q2 = query(anteproyectosRef, where('jurado2ID', '==', juradoId));
+    const q3 = query(anteproyectosRef, where('jurado3ID', '==', juradoId));
     
     // Ejecuta ambas consultas
-    const [querySnapshot1, querySnapshot2] = await Promise.all([
+    const [querySnapshot1, querySnapshot2, querySnapshot3] = await Promise.all([
       getDocs(q1),
       getDocs(q2),
+      getDocs(q3),
     ]);
     
     // Combina los resultados de ambas consultas
     const anteproyectos = [
       ...querySnapshot1.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-      ...querySnapshot2.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      ...querySnapshot2.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+      ...querySnapshot3.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     ];
     
     console.log(`Número de anteproyectos recuperados: ${anteproyectos.length}`);
@@ -465,16 +481,17 @@ export async function getJuradorDetails(juradorId) {
   }
 }
 // Función para obtener detalles del jurado y actualizar el anteproyecto
-export async function updateAnteproyectoJurados(anteproyectoId, jurado1Id, jurado2Id) {
+export async function updateAnteproyectoJurados(anteproyectoId, jurado1Id, jurado2Id,jurado3Id) {
   try {
     // Obtén los detalles de cada jurado
     const jurado1Details = await getJuradorDetails(jurado1Id);
     const jurado2Details = await getJuradorDetails(jurado2Id);
-    
+    const jurado3Details = await getJuradorDetails(jurado3Id);
     // Prepara la información para actualizar el anteproyecto
     const updates = {
       jurado1ID: jurado1Id,
       jurado2ID: jurado2Id,
+      jurado3ID: jurado3Id,
       jurado1: {
         id: jurado1Id,
         nombre: jurado1Details ? jurado1Details.fullName : "No disponible"
@@ -482,6 +499,10 @@ export async function updateAnteproyectoJurados(anteproyectoId, jurado1Id, jurad
       jurado2: {
         id: jurado2Id,
         nombre: jurado2Details ? jurado2Details.fullName : "No disponible"
+      },
+      jurado3: {
+        id: jurado3Id,
+        nombre: jurado3Details ? jurado3Details.fullName : "No disponible"
       }
     };
     
@@ -562,9 +583,12 @@ export async function updateNotificationStatus(notificationId, status, juryId) {
       if (juryId === 'jury1') {
         updateData.jurado1Status = status;
         updateData.jurado1Observation = status === 'Rejected' ? 'Observación de jurado 1' : '';
-      } else if (juryId === 'jury2') {
+      } if (juryId === 'jury2') {
         updateData.jurado2Status = status;
         updateData.jurado2Observation = status === 'Rejected' ? 'Observación de jurado 2' : '';
+      } else if (juryId === 'jury3') {
+        updateData.jurado3Status = status;
+        updateData.jurado3Observation = status === 'Rejected' ? 'Observación de jurado 3' : '';
       }
 
       // Actualiza el documento del anteproyecto
@@ -628,5 +652,5 @@ export {
   getStorage,
   getFirestore,
   initializeApp,
-  
+  EmailAuthProvider, reauthenticateWithCredential, updatePassword 
 };

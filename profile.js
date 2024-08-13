@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Si el usuario no está autenticado, redirige a login
   if (!user) {
-    window.location.href = 'login.html';
+    window.location.href = '/login';
     return;
   }
 
